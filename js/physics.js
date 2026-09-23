@@ -14,7 +14,7 @@ export function createVehicle(config,trackQuery){
   const maxLong=Math.max(cfg.engineForce*1.5,cfg.brakeForce);
   const rollN=(cfg.rollResist/1000)*cfg.mass*G;
   const state={position:{x:0,y:0,z:0},heading:0,velocity:{x:0,y:0,z:0},forwardSpeed:0,lateralSpeed:0,slipAngle:0,steerAngle:0,throttle:0,brake:0,nitroActive:false,nitroAmount:cfg.nitroCapacity,gear:1,rpm:900,lap:1,checkpointIndex:0,racePosition:1,distanceAlong:0,offTrack:false,crashed:false,crashIntensity:0,finished:false,finishTime:0};
-  let yawRate=0,prevS=0,armed=false;
+  let yawRate=0,prevS=0,armed=false,inContact=false;
 
   // ---- one fixed physics step ----
   function step(dt,input){
@@ -58,8 +58,8 @@ export function createVehicle(config,trackQuery){
 
     // Pacejka-lite lateral tires (bicycle)
     const vx=Math.abs(v0)<0.5?(v0<0?-0.5:0.5):v0;
-    const aF=state.steerAngle-Math.atan2(state.lateralSpeed+yawRate*lf,vx);
-    const aR=-Math.atan2(state.lateralSpeed-yawRate*lr,vx);
+    const aF=state.steerAngle-Math.atan2(state.lateralSpeed-yawRate*lf,vx);
+    const aR=-Math.atan2(state.lateralSpeed+yawRate*lr,vx);
     const FyF=lg.D*Math.sin(lg.C*Math.atan(lg.B*aF))*FzF*ellipse;
     const FyR=lg.D*Math.sin(lg.C*Math.atan(lg.B*aR))*FzR*ellipse;
 
@@ -100,17 +100,25 @@ export function createVehicle(config,trackQuery){
           state.position.x+=nx*push;state.position.z+=nz*push;
           const vn=state.velocity.x*nx+state.velocity.z*nz;
           if(vn<0){
-            state.velocity.x-=nx*vn;state.velocity.z-=nz*vn;
             const impact=-vn;
-            hit=true;
-            state.crashed=true;
-            state.crashIntensity=clamp(impact/25,0,1);
-            const f=1-clamp(0.25*impact,0,0.8);
-            state.velocity.x*=f;state.velocity.z*=f;
+            state.velocity.x-=nx*vn;state.velocity.z-=nz*vn;
+            // Rail normal force acts at the nose, not the CG: it yaws the nose
+            // away from the rail. (Prevents heading wind-up while pinned.)
+            const rightDotN=b.right.x*nx+b.right.z*nz;
+            yawRate+=clamp(-(2.2*cfg.mass*impact*rightDotN/cfg.Iz)*0.8,-0.5,0.5);
+            if(impact>2&&!inContact){
+              hit=true;
+              state.crashed=true;
+              state.crashIntensity=clamp(impact/25,0,1);
+              const f=1-clamp(0.1*impact,0,0.5);
+              state.velocity.x*=f;state.velocity.z*=f;
+            }
           }
+          inContact=true;
           state.forwardSpeed=clamp(state.velocity.x*b.forward.x+state.velocity.z*b.forward.z,-15,95);
+          state.forwardSpeed*=(1-0.35*dt); // guardrail grind friction (frame-rate independent)
           state.lateralSpeed=clamp(state.velocity.x*b.right.x+state.velocity.z*b.right.z,-30,30);
-        }
+        } else inContact=false;
         state.offTrack=Math.abs(q.lateral)>halfW*0.94;
         const L=num(trackQuery.length,1)||1;
         const s=q.s;
@@ -159,6 +167,7 @@ export function createVehicle(config,trackQuery){
     state.heading=num(pose.heading,0);
     state.velocity.x=0;state.velocity.y=0;state.velocity.z=0;
     state.forwardSpeed=0;state.lateralSpeed=0;state.slipAngle=0;state.steerAngle=0;
+    yawRate=0;prevS=0;armed=false;inContact=false;
     state.throttle=0;state.brake=0;state.nitroActive=false;state.nitroAmount=cfg.nitroCapacity;
     state.gear=1;state.rpm=900;state.lap=1;state.checkpointIndex=0;state.racePosition=1;
     state.distanceAlong=num(pose.s,0);state.offTrack=false;state.crashed=false;
