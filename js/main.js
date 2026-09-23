@@ -295,7 +295,8 @@ function frame(now) {
 async function boot() {
   renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-  renderer.setSize(window.innerWidth, window.innerHeight);
+  const vw = Math.max(1, window.innerWidth | 0), vh = Math.max(1, window.innerHeight | 0);
+  renderer.setSize(vw, vh);
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -305,7 +306,7 @@ async function boot() {
 
   scene = new THREE.Scene();
   scene.fog = new THREE.FogExp2(0x6b4a3a, 0.0016);
-  camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.3, 4000);
+  camera = new THREE.PerspectiveCamera(62, vw / vh, 0.3, 4000);
   camera.position.set(0, 6, -12);
 
   audio = new AudioAdapter();
@@ -368,14 +369,15 @@ async function boot() {
 /* ---------- globals ---------- */
 addEventListener('resize', () => {
   if (!renderer) return;
-  camera.aspect = window.innerWidth / window.innerHeight;
+  const w = Math.max(1, window.innerWidth | 0), h = Math.max(1, window.innerHeight | 0);
+  camera.aspect = w / h;
   camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  if (effects && effects.resize) { try { effects.resize(window.innerWidth, window.innerHeight); } catch (e) { /* ignore */ } }
+  renderer.setSize(w, h);
+  if (effects && effects.resize) { try { effects.resize(w, h); } catch (e) { /* ignore */ } }
 });
-addEventListener('error', e => { if (ui.showError) ui.showError((e && e.message) || 'Unknown error'); });
+addEventListener('error', e => { if (ui && ui.showError) ui.showError((e && e.message) || 'Unknown error'); });
 addEventListener('unhandledrejection', e => {
-  if (ui.showError) ui.showError((e && e.reason && e.reason.message) || 'Unhandled rejection');
+  if (ui && ui.showError) ui.showError((e && e.reason && e.reason.message) || 'Unhandled rejection');
 });
 
 export { boot, input, startRace, restart };

@@ -158,6 +158,13 @@ export function createVehicle(config,trackQuery){
     if(!isFinite(state.position.x))state.position.x=0;
     if(!isFinite(state.position.z))state.position.z=0;
     if(!isFinite(state.position.y))state.position.y=0;
+    if(!isFinite(state.rpm))state.rpm=900;
+    if(!isFinite(state.slipAngle))state.slipAngle=0;
+    if(!isFinite(state.steerAngle))state.steerAngle=0;
+    if(!isFinite(state.nitroAmount))state.nitroAmount=0;
+    if(!isFinite(state.crashIntensity)){state.crashIntensity=0;state.crashed=false;}
+    if(!isFinite(state.distanceAlong))state.distanceAlong=0;
+    if(!isFinite(state.raceTime))state.raceTime=0;
     return state;
   }
 

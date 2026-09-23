@@ -46,6 +46,11 @@ export class ChaseCamera {
 
   update(dt, s) {
     if (!s || !s.position) return;
+    // A single non-finite coordinate poisons the view matrix and can turn the
+    // whole frame solid white (or wedge the GPU). Never let it through.
+    const px = s.position.x, py = s.position.y, pz = s.position.z;
+    if (!isFinite(px) || !isFinite(py) || !isFinite(pz)) return;
+    if (!isFinite(s.heading)) s.heading = 0;
     this.time += dt;
     this._basis(s);
     const speedFactor = this._compute(s, this._desired, this._desiredLook);
@@ -82,6 +87,8 @@ export class ChaseCamera {
 
   snap(s) {
     if (!s || !s.position) return;
+    if (!isFinite(s.position.x) || !isFinite(s.position.y) || !isFinite(s.position.z)) return;
+    if (!isFinite(s.heading)) s.heading = 0;
     this._basis(s);
     const speedFactor = this._compute(s, this._desired, this._desiredLook);
     this._pos.copy(this._desired);

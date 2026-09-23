@@ -171,12 +171,16 @@ export function initEffects(scene, renderer, sunLight, opts = {}) {
   composer.addPass(outputPass);
   blurPass.enabled = false;
 
-  function resize() {
+  function resize(w, h) {
     const el = renderer.domElement;
-    const w = (el && el.clientWidth) || window.innerWidth;
-    const h = (el && el.clientHeight) || window.innerHeight;
-    composer.setPixelRatio(renderer.getPixelRatio());
-    composer.setSize(w, h);
+    const cw = (el && el.clientWidth) || window.innerWidth;
+    const ch = (el && el.clientHeight) || window.innerHeight;
+    // Never allow a zero/negative-size target: some drivers wedge or present
+    // garbage (e.g. a solid-white frame) when a render target has a 0 dimension.
+    const W = Math.max(1, Math.floor(w != null ? w : cw));
+    const H = Math.max(1, Math.floor(h != null ? h : ch));
+    composer.setPixelRatio(Math.max(1, renderer.getPixelRatio() || 1));
+    composer.setSize(W, H);
   }
   window.addEventListener('resize', resize);
   resize();

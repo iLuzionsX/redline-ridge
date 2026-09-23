@@ -28,10 +28,13 @@
 <div id="app"></div>
 <div id="fatal"><h2>Redline Ridge failed to start</h2><p id="fatal-msg"></p></div>
 <noscript><div style="color:#fff;padding:32px;font-family:system-ui">Redline Ridge needs JavaScript.</div></noscript>
-<script src="./js/new-audio-engine.js"></script>
+<!-- Cache-busting: GitHub Pages serves unhashed JS with long-lived CDN cache.
+     Bump ASSET_V below (and the classic script's ?v=) whenever any js/* file changes. -->
+<script src="./js/new-audio-engine.js?v=20260923b"></script>
 <script type="module">
+  const ASSET_V = '20260923b';
   try {
-    const { boot } = await import('./js/main.js');
+    const { boot } = await import('./js/main.js?v=' + ASSET_V);
     await boot();
   } catch (err) {
     console.error(err);

@@ -9,7 +9,7 @@ class AudioAdapter {
   async init() {
     // AUDIO INTEGRATION POINT — real engine (agent 1) exposes class AudioEngine with async init(), setState({rpm,throttle,brake,slip,gear,speed}), playCrash(intensity), setMuted(bool).
     try {
-      const mod = await import('./audio-engine.js');
+      const mod = await import('./audio-engine.js?v=20260923b'); // keep ?v= in sync with index.html ASSET_V
       this.engine = new mod.AudioEngine();
       await this.engine.init();
     } catch (e) {

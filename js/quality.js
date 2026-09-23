@@ -2,9 +2,9 @@ class QualityGovernor {
   // tier order + per-tier config
   static TIERS = ['low', 'medium', 'high'];
   static CONFIG = {
-    high:   { dpr: Math.min((typeof devicePixelRatio === 'number' ? devicePixelRatio : 1), 2),   shadow: { size: 2048, frustum: 60 }, reflector: true,  motionBlur: true,  aa: true,  propDensity: 1.0, aniso: 8 },
-    medium: { dpr: Math.min((typeof devicePixelRatio === 'number' ? devicePixelRatio : 1), 1.5), shadow: { size: 1024, frustum: 50 }, reflector: false, motionBlur: true,  aa: true,  propDensity: 0.7, aniso: 4 },
-    low:    { dpr: 1,                                                                            shadow: { size: 512,  frustum: 40 }, reflector: false, motionBlur: false, aa: false, propDensity: 0.4, aniso: 2 }
+    high:   { dpr: Math.max(1, Math.min((typeof devicePixelRatio === 'number' ? devicePixelRatio : 1), 2)),   shadow: { size: 2048, frustum: 60 }, reflector: true,  motionBlur: true,  aa: true,  propDensity: 1.0, aniso: 8 },
+    medium: { dpr: Math.max(1, Math.min((typeof devicePixelRatio === 'number' ? devicePixelRatio : 1), 1.5)), shadow: { size: 1024, frustum: 50 }, reflector: false, motionBlur: true,  aa: true,  propDensity: 0.7, aniso: 4 },
+    low:    { dpr: 1,                                                                                        shadow: { size: 512,  frustum: 40 }, reflector: false, motionBlur: false, aa: false, propDensity: 0.4, aniso: 2 }
   };
 
   constructor(renderer, hooks = {}) {
