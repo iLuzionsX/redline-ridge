@@ -71,6 +71,13 @@ Substitutions vs. the original manifest are marked [SUB].
 - Author: Amal Kumar
 - License: CC0-1.0
 - Note: no CC0 metal W-beam guardrail model could be found (the one OGA "Guardrail" entry is CC-BY-SA/GPL — excluded). Substituted with a scanned concrete road barrier, which serves the same track-edge role.
+- Note (superseded at runtime): guardrail.glb is NOT loaded by the game. The track-edge wall is an extruded profile surfaced with the scan's real textures, extracted to assets/env/barrier/ (see next entry).
+
+### assets/env/barrier/{diff,nor_gl,rough}.jpg  [ACTIVE]
+- Source: texture set extracted from the Poly Haven model "concrete_road_barrier" scan — https://polyhaven.com/a/concrete_road_barrier
+- Author: Amal Kumar
+- License: CC0-1.0
+- Note: these are the textures actually applied to the barrier wall by world.js; extracted at 512px from the same CC0 scan as guardrail.glb above.
 
 ### assets/env/banner-a.png, assets/env/banner-b.png, assets/env/sign-chevron.png
 - Original artwork created for this project (PIL-rendered): fictional sponsors "REDLINE RIDGE Grand Prix" and "APEX TURBO CUP", plus a black-on-yellow chevron corner sign. No real brands. No third-party source, no attribution required.
