@@ -9,7 +9,8 @@ const ASSETS = {
   treeA:'assets/env/tree-pine-a.glb', treeB:'assets/env/tree-pine-b.glb',
   rockA:'assets/env/rock-a.glb', rockB:'assets/env/rock-b.glb',
   building:'assets/env/building-a.glb', mountainFar:'assets/env/mountain-far.glb',
-  bannerA:'assets/env/banner-a.png', bannerB:'assets/env/banner-b.png', chevron:'assets/env/sign-chevron.png'
+  bannerA:'assets/env/banner-a.png', bannerB:'assets/env/banner-b.png', chevron:'assets/env/sign-chevron.png',
+  startline:'assets/env/startline_checker.jpg', curb:'assets/env/curb_stripes.jpg'
 };
 
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
@@ -20,19 +21,13 @@ function vnoise(x,y){const xi=Math.floor(x),yi=Math.floor(y),xf=x-xi,yf=y-yi;con
 function fbm(x,y){return vnoise(x,y)*0.6+vnoise(x*2.13,y*2.13)*0.28+vnoise(x*4.37,y*4.37)*0.12;}
 function smoothstep(a,b,x){const t=Math.min(1,Math.max(0,(x-a)/(b-a)));return t*t*(3-2*t);}
 
-function checkerTex(){
-  const c=document.createElement('canvas');c.width=64;c.height=16;const g=c.getContext('2d');
-  for(let y=0;y<2;y++)for(let x=0;x<8;x++){g.fillStyle=((x+y)&1)?'#f2f2f2':'#141414';g.fillRect(x*8,y*8,8,8);}
-  const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=8;return t;
-}
-
 export async function buildWorld(scene, quality, onProgress){
   const prog = onProgress || function(){};
   const q = quality || {};
   const rng = mulberry32(7);
   const loader = new GLTFLoader();
   const texLoader = new THREE.TextureLoader();
-  let done = 0; const TOTAL = 17;
+  let done = 0; const TOTAL = 19;
   const step = l => { done++; prog(Math.min(1, done/TOTAL), l); };
   const safe = async (p, label) => { try { const r = await p; step(label); return r; } catch(e){ console.warn('[world] asset failed:', label, e && e.message); step(label); return null; } };
   const loadTex = (url, srgb) => new Promise((res,rej)=>texLoader.load(url, t=>{
@@ -59,7 +54,9 @@ export async function buildWorld(scene, quality, onProgress){
     mountainFar:safe(loadGLB(ASSETS.mountainFar),'mountainFar'),
     bannerA:    safe(loadTex(ASSETS.bannerA,true),'bannerA'),
     bannerB:    safe(loadTex(ASSETS.bannerB,true),'bannerB'),
-    chevron:    safe(loadTex(ASSETS.chevron,true),'chevron')
+    chevron:    safe(loadTex(ASSETS.chevron,true),'chevron'),
+    startline:  safe(loadTex(ASSETS.startline,true),'startline'),
+    curb:       safe(loadTex(ASSETS.curb,true),'curb')
   };
   const A = {};
   for(const k in jobs) A[k] = await jobs[k];
@@ -114,29 +111,33 @@ export async function buildWorld(scene, quality, onProgress){
   road.receiveShadow = true; road.name = 'road';
   scene.add(road);
 
-  // ---- CURBS (vertex-coloured red/white stripes) ----
-  const cp=[],cc=[],ci=[];
+  // ---- CURBS (red/white stripe texture) ----
+  const cp=[],cu=[],ci=[];
   for(let i=0;i<=N;i++){
     const u=i/N, p=curve.getPointAt(u), t=curve.getTangentAt(u);
     const rl=Math.hypot(t.x,t.z)||1, rx=t.z/rl, rz=-t.x/rl, s=u*length;
-    const c = (Math.floor(s/2)&1) ? [0.88,0.13,0.13] : [0.93,0.93,0.93];
+    const v = s/2; // one red+white stripe pair per 2m of track
     cp.push(p.x-rx*(HW+0.55),p.y+0.03,p.z-rz*(HW+0.55), p.x-rx*HW,p.y+0.03,p.z-rz*HW,
             p.x+rx*HW,p.y+0.03,p.z+rz*HW, p.x+rx*(HW+0.55),p.y+0.03,p.z+rz*(HW+0.55));
-    for(let k=0;k<4;k++) cc.push(c[0],c[1],c[2]);
+    cu.push(0,v, 1,v, 1,v, 0,v);
     if(i<N){const a=i*4; ci.push(a,a+4,a+1, a+1,a+4,a+5, a+2,a+6,a+3, a+3,a+6,a+7);}
   }
   const curbGeo = new THREE.BufferGeometry();
   curbGeo.setAttribute('position', new THREE.Float32BufferAttribute(cp,3));
-  curbGeo.setAttribute('color', new THREE.Float32BufferAttribute(cc,3));
+  curbGeo.setAttribute('uv', new THREE.Float32BufferAttribute(cu,2));
   curbGeo.setIndex(ci); curbGeo.computeVertexNormals();
-  const curbs = new THREE.Mesh(curbGeo, new THREE.MeshStandardMaterial({vertexColors:true, roughness:0.85, metalness:0.0, side:THREE.DoubleSide}));
+  const curbMat = new THREE.MeshStandardMaterial({roughness:0.85, metalness:0.0, side:THREE.DoubleSide});
+  if(A.curb) curbMat.map = A.curb;
+  const curbs = new THREE.Mesh(curbGeo, curbMat);
   curbs.receiveShadow = true;
   scene.add(curbs);
 
   // ---- START / FINISH ----
   const sp0 = curve.getPointAt(0), st0 = curve.getTangentAt(0);
   const sfGeo = new THREE.PlaneGeometry(9, 2.4); sfGeo.rotateX(-Math.PI/2);
-  const sf = new THREE.Mesh(sfGeo, new THREE.MeshStandardMaterial({map:checkerTex(), roughness:0.9, metalness:0.0}));
+  const sfMat = new THREE.MeshStandardMaterial({roughness:0.9, metalness:0.0});
+  if(A.startline) sfMat.map = A.startline;
+  const sf = new THREE.Mesh(sfGeo, sfMat);
   sf.position.set(sp0.x, sp0.y+0.02, sp0.z);
   sf.rotation.y = Math.atan2(st0.x, st0.z);
   sf.receiveShadow = true;

@@ -82,6 +82,18 @@ Substitutions vs. the original manifest are marked [SUB].
 ### assets/env/banner-a.png, assets/env/banner-b.png, assets/env/sign-chevron.png
 - Original artwork created for this project (PIL-rendered): fictional sponsors "REDLINE RIDGE Grand Prix" and "APEX TURBO CUP", plus a black-on-yellow chevron corner sign. No real brands. No third-party source, no attribution required.
 
+### assets/env/startline_checker.jpg  [ACTIVE]
+- Source: Wikimedia Commons file "Checkerboard Pattern 8x6.svg" — https://commons.wikimedia.org/wiki/File:Checkerboard_Pattern_8x6.svg
+- Authors: Indolences, RustyBadger
+- License: Public domain
+- Note: rasterized from the PD SVG and cropped to 8x2 squares (512x128 JPG) for the start/finish line. Replaces the previously canvas-generated checker texture.
+
+### assets/env/curb_stripes.jpg  [ACTIVE]
+- Source: Wikimedia Commons file "600px vertical stripes Red HEX-FF0000 White.svg" — https://commons.wikimedia.org/wiki/File:600px_vertical_stripes_Red_HEX-FF0000_White.svg
+- Author: Blackcat
+- License: CC0-1.0
+- Note: rasterized from the CC0 SVG (red #ff0000 / white vertical stripes), cropped to one red+white stripe pair above the decorative border, rotated to horizontal bands (256x128 JPG). UV-mapped so one tile = one 2m stripe segment. Replaces the previously vertex-coloured curb stripes.
+
 ### assets/env/building-a.glb  [SUB]
 - Source: Kenney City Kit (Suburban), `building-type-f.glb` (palette texture embedded) — https://kenney.nl/assets/city-kit-suburban
 - Author: Kenney
