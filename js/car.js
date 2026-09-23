@@ -102,24 +102,54 @@ export class Car {
     this.group.add(root);
     root.updateMatrixWorld(true);
 
-    // Wheels: mesh (or ancestor) named *wheel*; front = local z < 0 (forward is -Z).
+    // Wheels: mesh (or ancestor) named *wheel*. Front axle: prefer "front"/"rear"
+    // in node names when present (some models face +Z); fall back to -Z forward.
     const wp = new THREE.Vector3();
+    const wheelObjs = [];
     root.traverse((o) => {
       if (!o.isMesh) return;
-      let n = o;
-      let isWheel = false;
+      let n = o, isWheel = false, tag = '';
       while (n && n !== this.group) {
-        if (WHEEL_RE.test(n.name || '')) { isWheel = true; break; }
+        const nm = (n.name || '').toLowerCase();
+        if (/wheel|tire|tyre/.test(nm)) { isWheel = true; tag += ' ' + nm; }
         n = n.parent;
       }
-      if (!isWheel) return;
-      o.getWorldPosition(wp);
-      this.wheels.push(o);
-      if (wp.z < 0) {
-        o.rotation.order = 'YXZ'; // steer (Y) outside, spin (X) inside
-        this.frontWheels.push(o);
-      }
+      if (isWheel) wheelObjs.push({ o, tag });
     });
+    if (wheelObjs.length) {
+      const frontZ = [], rearZ = [];
+      for (const w of wheelObjs) {
+        w.o.getWorldPosition(wp);
+        // group-local z (group itself is unrotated at load time)
+        const lz = this.group.worldToLocal(wp.clone()).z;
+        w.lz = lz;
+        if (/front/.test(w.tag)) frontZ.push(lz);
+        else if (/rear|back/.test(w.tag)) rearZ.push(lz);
+      }
+      let fz = frontZ.length ? frontZ.reduce((a,b)=>a+b,0)/frontZ.length : null;
+      if (fz === null && rearZ.length) {
+        // infer: front is the axle opposite the rear
+        const rz = rearZ.reduce((a,b)=>a+b,0)/rearZ.length;
+        const others = wheelObjs.map(w=>w.lz).filter(z=>Math.abs(z-rz)>0.3);
+        if (others.length) fz = others.reduce((a,b)=>a+b,0)/others.length;
+      }
+      if (fz !== null && fz > 0) {
+        // model faces +Z; turn it to face -Z (three.js forward)
+        root.rotation.y = Math.PI;
+        root.updateMatrixWorld(true);
+        for (const w of wheelObjs) {
+          w.o.getWorldPosition(wp);
+          w.lz = this.group.worldToLocal(wp.clone()).z;
+        }
+      }
+      for (const w of wheelObjs) {
+        this.wheels.push(w.o);
+        if (w.lz < 0) {
+          w.o.rotation.order = 'YXZ'; // steer (Y) outside, spin (X) inside
+          this.frontWheels.push(w.o);
+        }
+      }
+    }
 
     this.loaded = true;
     return this;

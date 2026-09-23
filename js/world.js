@@ -1,12 +1,14 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const ASSETS = {
-  roadAlbedo:'assets/env/road/asphalt-albedo.jpg', roadNormal:'assets/env/road/asphalt-normal.jpg', roadRough:'assets/env/road/asphalt-rough.jpg',
+  roadAlbedo:'assets/env/road/albedo.jpg', roadNormal:'assets/env/road/normal.jpg', roadRough:'assets/env/road/roughness.jpg',
+  barrierDiff:'assets/env/barrier/diff.jpg', barrierNormal:'assets/env/barrier/nor_gl.jpg', barrierRough:'assets/env/barrier/rough.jpg',
   grass:'assets/env/terrain-grass.jpg', rockTex:'assets/env/terrain-rock.jpg',
   treeA:'assets/env/tree-pine-a.glb', treeB:'assets/env/tree-pine-b.glb',
   rockA:'assets/env/rock-a.glb', rockB:'assets/env/rock-b.glb',
-  guardrail:'assets/env/guardrail.glb', building:'assets/env/building-a.glb', mountainFar:'assets/env/mountain-far.glb',
+  building:'assets/env/building-a.glb', mountainFar:'assets/env/mountain-far.glb',
   bannerA:'assets/env/banner-a.png', bannerB:'assets/env/banner-b.png', chevron:'assets/env/sign-chevron.png'
 };
 
@@ -30,7 +32,7 @@ export async function buildWorld(scene, quality, onProgress){
   const rng = mulberry32(7);
   const loader = new GLTFLoader();
   const texLoader = new THREE.TextureLoader();
-  let done = 0; const TOTAL = 15;
+  let done = 0; const TOTAL = 17;
   const step = l => { done++; prog(Math.min(1, done/TOTAL), l); };
   const safe = async (p, label) => { try { const r = await p; step(label); return r; } catch(e){ console.warn('[world] asset failed:', label, e && e.message); step(label); return null; } };
   const loadTex = (url, srgb) => new Promise((res,rej)=>texLoader.load(url, t=>{
@@ -44,13 +46,15 @@ export async function buildWorld(scene, quality, onProgress){
     roadAlbedo: safe(loadTex(ASSETS.roadAlbedo,true),'road albedo'),
     roadNormal: safe(loadTex(ASSETS.roadNormal,false),'road normal'),
     roadRough:  safe(loadTex(ASSETS.roadRough,false),'road rough'),
+    barrierDiff: safe(loadTex(ASSETS.barrierDiff,true),'barrier diff'),
+    barrierNormal: safe(loadTex(ASSETS.barrierNormal,false),'barrier normal'),
+    barrierRough: safe(loadTex(ASSETS.barrierRough,false),'barrier rough'),
     grass:      safe(loadTex(ASSETS.grass,true),'grass'),
     rockTex:    safe(loadTex(ASSETS.rockTex,true),'rock'),
     treeA:      safe(loadGLB(ASSETS.treeA),'treeA'),
     treeB:      safe(loadGLB(ASSETS.treeB),'treeB'),
     rockA:      safe(loadGLB(ASSETS.rockA),'rockA'),
     rockB:      safe(loadGLB(ASSETS.rockB),'rockB'),
-    guardrail:  safe(loadGLB(ASSETS.guardrail),'guardrail'),
     building:   safe(loadGLB(ASSETS.building),'building'),
     mountainFar:safe(loadGLB(ASSETS.mountainFar),'mountainFar'),
     bannerA:    safe(loadTex(ASSETS.bannerA,true),'bannerA'),
@@ -179,12 +183,39 @@ export async function buildWorld(scene, quality, onProgress){
   // ---- PROPS ----
   const props = [];
   const dummy = new THREE.Object3D();
-  const firstMesh = root => { let m=null; root.traverse(o=>{ if(!m && o.isMesh) m=o; }); return m; };
-  const instFrom = (gltf, count) => {
+  // Merge every mesh in a prop GLB into one geometry (with material groups) so
+  // InstancedMesh renders the WHOLE prop (trunk+leaves etc.), not just 1 mesh.
+  const mergedFrom = (gltf) => {
     if(!gltf) return null;
-    const src = firstMesh(gltf.scene);
-    if(!src) return null;
-    const m = new THREE.InstancedMesh(src.geometry, src.material, count);
+    gltf.scene.updateMatrixWorld(true);
+    const geos = [], mats = [];
+    gltf.scene.traverse(o => {
+      if(!o.isMesh || !o.geometry) return;
+      let g = o.geometry.clone().applyMatrix4(o.matrixWorld);
+      let mi = mats.indexOf(o.material);
+      if(mi < 0){ mi = mats.length; mats.push(o.material); }
+      g.clearGroups();
+      g.addGroup(0, g.index ? g.index.count : g.attributes.position.count, mi);
+      geos.push(g);
+    });
+    if(!geos.length) return null;
+    // normalize index-ness for mergeGeometries
+    const anyIndexed = geos.some(g => !!g.index);
+    const norm = geos.map(g => (anyIndexed && !g.index) ? g.toNonIndexed() : ((!anyIndexed && g.index) ? g.toNonIndexed() : g));
+    // drop incompatible attribute sets
+    const keys = Object.keys(norm[0].attributes).sort().join(',');
+    const compat = norm.filter(g => Object.keys(g.attributes).sort().join(',') === keys);
+    const merged = mergeGeometries(compat.length > 1 ? compat : norm, true);
+    if(!merged){
+      const first = geos[0];
+      return { geometry: first, materials: [mats[0] || new THREE.MeshStandardMaterial({color:0x888888})] };
+    }
+    return { geometry: merged, materials: mats };
+  };
+  const instFrom = (gltf, count) => {
+    const mp = mergedFrom(gltf);
+    if(!mp) return null;
+    const m = new THREE.InstancedMesh(mp.geometry, mp.materials.length > 1 ? mp.materials : mp.materials[0], count);
     m.castShadow = true; m.receiveShadow = true; m.userData.max = count;
     return m;
   };
@@ -212,16 +243,18 @@ export async function buildWorld(scene, quality, onProgress){
 
   // buildings near start
   if(A.building){
-    const src = firstMesh(A.building.scene);
-    if(src){
+    const mp = mergedFrom(A.building);
+    if(mp){
+      const bmat = mp.materials.length > 1 ? mp.materials : mp.materials[0];
       for(let i=0;i<3;i++){
         const u = 0.006 + i*0.013;
         const p = curve.getPointAt(u), t = curve.getTangentAt(u);
         const rl = Math.hypot(t.x,t.z)||1, rx=t.z/rl, rz=-t.x/rl;
         const side = (i%2)?1:-1, d = 26 + rng()*14;
         const x = p.x + rx*d*side, z = p.z + rz*d*side;
-        const m = new THREE.Mesh(src.geometry, src.material);
+        const m = new THREE.Mesh(mp.geometry, bmat);
         m.position.set(x, terrainHeight(x,z), z);
+        m.scale.set(4,4,4);
         m.rotation.y = Math.atan2(t.x,t.z) + (side>0?Math.PI:0) + (rng()-0.5)*0.4;
         m.castShadow = true; m.receiveShadow = true;
         scene.add(m);
@@ -231,13 +264,14 @@ export async function buildWorld(scene, quality, onProgress){
 
   // far mountains
   if(A.mountainFar){
-    const src = firstMesh(A.mountainFar.scene);
-    if(src){
+    const mp = mergedFrom(A.mountainFar);
+    if(mp){
+      const mmat = mp.materials.length > 1 ? mp.materials : mp.materials[0];
       for(let i=0;i<8;i++){
         const a = (i/8)*Math.PI*2 + rng()*0.35;
         const r = 620 + rng()*280;
-        const m = new THREE.Mesh(src.geometry, src.material);
-        const s = 3 + rng()*3.5;
+        const m = new THREE.Mesh(mp.geometry, mmat);
+        const s = 28 + rng()*30;
         m.position.set(cx + Math.cos(a)*r, -10 + rng()*20, cz + Math.sin(a)*r);
         m.scale.set(s,s,s);
         m.rotation.y = rng()*Math.PI*2;
@@ -289,31 +323,38 @@ export async function buildWorld(scene, quality, onProgress){
     }
   }
 
-  // guardrails
-  if(A.guardrail){
-    const src = firstMesh(A.guardrail.scene);
-    if(src){
-      const seg = 4, cnt = Math.floor(length/seg);
-      const gm = new THREE.InstancedMesh(src.geometry, src.material, cnt*2);
-      gm.castShadow = true; gm.receiveShadow = true;
-      let k = 0;
-      for(let i=0;i<cnt;i++){
-        const u = (i*seg)/length;
-        const p = curve.getPointAt(u), t = curve.getTangentAt(u);
-        const rl = Math.hypot(t.x,t.z)||1, rx=t.z/rl, rz=-t.x/rl;
-        const yaw = Math.atan2(t.x,t.z);
-        for(const side of [-1,1]){
-          const d = 5.3*side;
-          dummy.position.set(p.x + rx*d, p.y, p.z + rz*d);
-          dummy.rotation.set(0, yaw, 0);
-          dummy.scale.set(1,1,1);
-          dummy.updateMatrix();
-          gm.setMatrixAt(k++, dummy.matrix);
+  // ---- BARRIER WALLS (trackside concrete walls, real scanned concrete textures)
+  // The 61k-tri scanned barrier unit is too heavy to instance continuously, so the
+  // wall is an extruded Jersey profile surfaced with the scan's real textures.
+  if(A.barrierDiff){
+    const PROF = [[-0.35,0],[0.35,0],[0.2,0.5],[0.15,0.82],[-0.15,0.82],[-0.2,0.5]];
+    const bmat = new THREE.MeshStandardMaterial({ roughness:1.0, metalness:0.0, envMapIntensity:0.4, side:THREE.DoubleSide });
+    bmat.map = A.barrierDiff;
+    if(A.barrierNormal){ bmat.normalMap = A.barrierNormal; bmat.normalScale = new THREE.Vector2(0.9,0.9); }
+    if(A.barrierRough) bmat.roughnessMap = A.barrierRough;
+    for(const side of [-1,1]){
+      const BN = Math.max(64, Math.round(length/4));
+      const bp=[], bu=[], bi=[];
+      const off = side*(HW+0.85);
+      for(let i=0;i<=BN;i++){
+        const u=i/BN, p=curve.getPointAt(u), t=curve.getTangentAt(u);
+        const rl=Math.hypot(t.x,t.z)||1, rx=t.z/rl, rz=-t.x/rl, s=u*length;
+        const bx=p.x+rx*off, bz=p.z+rz*off;
+        for(let j=0;j<PROF.length;j++){
+          const lo=PROF[j][0], h=PROF[j][1];
+          bp.push(bx+rx*lo, p.y+h, bz+rz*lo);
+          bu.push(s/3, j/(PROF.length-1));
         }
+        if(i<BN){ const a=i*PROF.length, b=(i+1)*PROF.length;
+          for(let j=0;j<PROF.length-1;j++){ bi.push(a+j,b+j,a+j+1, a+j+1,b+j,b+j+1); } }
       }
-      gm.count = k; gm.userData.max = k;
-      gm.instanceMatrix.needsUpdate = true;
-      scene.add(gm); props.push(gm);
+      const bg = new THREE.BufferGeometry();
+      bg.setAttribute('position', new THREE.Float32BufferAttribute(bp,3));
+      bg.setAttribute('uv', new THREE.Float32BufferAttribute(bu,2));
+      bg.setIndex(bi); bg.computeVertexNormals();
+      const wall = new THREE.Mesh(bg, bmat);
+      wall.castShadow = true; wall.receiveShadow = true;
+      scene.add(wall);
     }
   }
 

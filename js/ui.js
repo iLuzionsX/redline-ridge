@@ -74,6 +74,7 @@ border-left:3px solid #e10600;padding:8px 18px;font-size:15px;font-weight:700;le
   <button id="rr-start" class="rr-btn">START RACE</button>
   <button id="rr-mute-menu" class="rr-btn rr-small">SOUND: ON</button>
   <div class="rr-note">Quality auto-adjusts to your device. Best with headphones.</div>
+  <div class="rr-note" style="opacity:.75">BMW G90 M5 by JUSTGAME, CC-BY 4.0, via Sketchfab · Full credits: assets/ATTRIBUTION.md</div>
 </div>
 <div id="rr-countdown" class="hidden"><span id="rr-count-num">3</span></div>
 <div id="rr-hud" class="hidden">

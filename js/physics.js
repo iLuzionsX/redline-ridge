@@ -13,7 +13,7 @@ export function createVehicle(config,trackQuery){
   const FzF=cfg.mass*G*lr/cfg.wheelBase,FzR=cfg.mass*G*lf/cfg.wheelBase;
   const maxLong=Math.max(cfg.engineForce*1.5,cfg.brakeForce);
   const rollN=(cfg.rollResist/1000)*cfg.mass*G;
-  const state={position:{x:0,y:0,z:0},heading:0,velocity:{x:0,y:0,z:0},forwardSpeed:0,lateralSpeed:0,slipAngle:0,steerAngle:0,throttle:0,brake:0,nitroActive:false,nitroAmount:cfg.nitroCapacity,gear:1,rpm:900,lap:1,checkpointIndex:0,racePosition:1,distanceAlong:0,offTrack:false,crashed:false,crashIntensity:0,finished:false,finishTime:0};
+  const state={position:{x:0,y:0,z:0},heading:0,velocity:{x:0,y:0,z:0},forwardSpeed:0,lateralSpeed:0,slipAngle:0,steerAngle:0,throttle:0,brake:0,nitroActive:false,nitroAmount:cfg.nitroCapacity,gear:1,rpm:900,lap:1,checkpointIndex:0,racePosition:1,distanceAlong:0,offTrack:false,crashed:false,crashIntensity:0,finished:false,finishTime:0,raceTime:0,finalTime:null};
   let yawRate=0,prevS=0,armed=false,inContact=false;
 
   // ---- one fixed physics step ----
@@ -139,7 +139,9 @@ export function createVehicle(config,trackQuery){
     }
     if(!hit)state.crashIntensity=Math.max(0,state.crashIntensity*(1-3*dt));
     if(state.crashIntensity<=0.001)state.crashed=false;
-    if(state.lap>3){state.finished=true;state.finishTime+=dt;}
+    state.raceTime+=dt;
+    if(state.lap>3&&!state.finished){state.finished=true;state.finalTime=state.raceTime;}
+    if(state.finished)state.finishTime+=dt;
 
     if(trackQuery&&typeof trackQuery.groundHeightAt==='function'){
       const y=trackQuery.groundHeightAt(state.position.x,state.position.z);
@@ -171,7 +173,7 @@ export function createVehicle(config,trackQuery){
     state.throttle=0;state.brake=0;state.nitroActive=false;state.nitroAmount=cfg.nitroCapacity;
     state.gear=1;state.rpm=900;state.lap=1;state.checkpointIndex=0;state.racePosition=1;
     state.distanceAlong=num(pose.s,0);state.offTrack=false;state.crashed=false;
-    state.crashIntensity=0;state.finished=false;state.finishTime=0;
+    state.crashIntensity=0;state.finished=false;state.finishTime=0;state.raceTime=0;state.finalTime=null;
     yawRate=0;prevS=state.distanceAlong;armed=true;
     return state;
   }

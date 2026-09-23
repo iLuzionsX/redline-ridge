@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { buildWorld } from './world.js';
-import Car from './car.js';
+import { Car } from './car.js';
 import { createVehicle, DEFAULT_CAR_CONFIG } from './physics.js';
-import RivalField from './rivals.js';
-import ChaseCamera from './camera.js';
-import initEffects from './effects.js';
+import { RivalField } from './rivals.js';
+import { ChaseCamera } from './camera.js';
+import { initEffects } from './effects.js';
 import QualityGovernor from './quality.js';
 import UI from './ui.js';
 import AudioAdapter from './audio-adapter.js';
@@ -26,7 +26,7 @@ const _v = new THREE.Vector3(), _q = new THREE.Quaternion(), _e = new THREE.Eule
 
 /* ---------- helpers ---------- */
 function makeCar(path, color) {
-  try { return new Car(path, color); } catch (e) { try { return Car(path, color); } catch (e2) { return null; } }
+  return new Car(path, color);
 }
 function carObject(car) { return car && (car.group || car.object3D || car.mesh || car.root || car); }
 function vehState(veh) { return veh ? (veh.state || veh) : null; }
@@ -132,24 +132,35 @@ function initTouch() {
 }
 
 /* ---------- race logic ---------- */
+function finalTimeOf(v) {
+  const st = v && (v.state || v);
+  return (st && st.finished && st.finalTime != null) ? st.finalTime : null;
+}
 function computeStandings() {
-  const list = [{ name: 'YOU', progress: progressOf(player && player.vehicle), player: true }];
+  const list = [{ name: 'YOU', isPlayer: true, totalTime: finalTimeOf(player && player.vehicle), progress: progressOf(player && player.vehicle) }];
   const cars = (rivals && rivals.cars) || [];
   for (let i = 0; i < cars.length; i++) {
     const c = cars[i];
     list.push({
       name: c.name || RIVAL_NAMES[i] || ('RIVAL ' + (i + 1)),
-      progress: progressOf(c.vehicle || c),
-      player: false
+      isPlayer: false,
+      totalTime: finalTimeOf(c.vehicle || c),
+      progress: progressOf(c.vehicle || c)
     });
   }
-  list.sort((a, b) => b.progress - a.progress);
+  list.sort((a, b) => {
+    const af = a.totalTime != null, bf = b.totalTime != null;
+    if (af && bf) return a.totalTime - b.totalTime;
+    if (af) return -1;
+    if (bf) return 1;
+    return b.progress - a.progress;
+  });
   standings = list;
   return list;
 }
 function playerPosition() {
   if (!standings.length) computeStandings();
-  for (let i = 0; i < standings.length; i++) if (standings[i].player) return i + 1;
+  for (let i = 0; i < standings.length; i++) if (standings[i].isPlayer) return i + 1;
   return standings.length || 1;
 }
 function resetGrid() {
@@ -285,14 +296,14 @@ async function boot() {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  document.body.appendChild(renderer.domElement);
+  (document.getElementById('app') || document.body).appendChild(renderer.domElement);
 
   scene = new THREE.Scene();
   scene.fog = new THREE.FogExp2(0x6b4a3a, 0.0016);
   camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.3, 4000);
   camera.position.set(0, 6, -12);
 
-  if (ui.showLoading) ui.showLoading('Loading…');
+  if (ui.showLoading) ui.showLoading(0, 'Loading…');
   audio = new AudioAdapter();
   try { await audio.init(); } catch (e) { /* silent stub is fine */ }
   ui = new UI(audio);
@@ -300,7 +311,7 @@ async function boot() {
   const onProgress = (p, msg) => {
     if (!ui.showLoading) return;
     const pct = typeof p === 'number' ? Math.round((p <= 1 ? p * 100 : p)) + '%' : '';
-    ui.showLoading(msg || ('Loading ' + pct));
+    ui.showLoading(p, msg || ('Loading ' + pct));
   };
 
   const world = await buildWorld(scene, 'high', onProgress);
@@ -360,11 +371,6 @@ addEventListener('resize', () => {
 addEventListener('error', e => { if (ui.showError) ui.showError((e && e.message) || 'Unknown error'); });
 addEventListener('unhandledrejection', e => {
   if (ui.showError) ui.showError((e && e.reason && e.reason.message) || 'Unhandled rejection');
-});
-
-boot().catch(err => {
-  console.error(err);
-  if (ui.showError) ui.showError((err && err.message) || 'Boot failed');
 });
 
 export { boot, input, startRace, restart };
