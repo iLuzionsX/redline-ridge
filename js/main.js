@@ -308,10 +308,10 @@ async function boot() {
   camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.3, 4000);
   camera.position.set(0, 6, -12);
 
-  if (ui.showLoading) ui.showLoading(0, 'Loading…');
   audio = new AudioAdapter();
   try { await audio.init(); } catch (e) { /* silent stub is fine */ }
   ui = new UI(audio);
+  if (ui.showLoading) ui.showLoading(0, 'Loading…');
 
   const onProgress = (p, msg) => {
     if (!ui.showLoading) return;
