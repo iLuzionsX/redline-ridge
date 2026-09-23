@@ -20,7 +20,7 @@ let touchSteer = 0, touchThrottle = false, touchBrake = false, touchNitro = fals
 
 let renderer, scene, camera, track, sunLight, setPropDensity, effects, governor, audio;
 let player, rivals, chase, ui = null;
-let state = 'loading', raceTime = 0, acc = 0, last = 0, hudTimer = 0, standings = [];
+let state = 'loading', raceTime = 0, acc = 0, last = 0, hudTimer = 0, standings = [], wasCrashed = false;
 const playerPos = new THREE.Vector3(), playerQuat = new THREE.Quaternion();
 const _v = new THREE.Vector3(), _q = new THREE.Quaternion(), _e = new THREE.Euler();
 
@@ -253,8 +253,13 @@ function render(dt) {
     try {
       audio.setState({
         rpm: s.rpm || 0, throttle: input.throttle, brake: input.brake,
-        slip: s.slipAngle || 0, gear: s.gear || 1, speed: Math.abs(speedOf(v))
+        slip: s.slipAngle || 0, gear: s.gear || 1, speed: Math.abs(speedOf(v)),
+        nitro: s.nitroActive || false
       });
+      if (s.crashed && !wasCrashed && audio.playCrash) {
+        audio.playCrash(s.crashIntensity != null ? s.crashIntensity : 0.6);
+      }
+      wasCrashed = !!s.crashed;
     } catch (e) { /* ignore */ }
   }
   if (effects && effects.render) { try { effects.render(camera); } catch (e) { renderer.render(scene, camera); } }
